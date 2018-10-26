@@ -15,10 +15,14 @@ contract StarNotary is ERC721 {
     }
 
     uint256 starCount = 0;  // used in test for uniqueness
-    uint256[] tokenIdsForSale;
+    uint256 sellingCount = 0;
+    uint256[] tokenIdsForSale; 
     mapping(uint256 => Star) public tokenIdToStar;
-    mapping(uint256 => Star) public indexToStar; // used in test for uniqueness
-    mapping(uint256 => uint256) public starsForSale;
+    mapping(uint256 => uint256) public indexToTokenId; // used in test for uniqueness
+    mapping(uint256 => uint256) public tokenIdToSellingIndex; // used in test for uniqueness
+
+    
+    mapping(uint256 => uint256) internal _starsForSale;
 
 
     function createStar(
@@ -38,7 +42,7 @@ contract StarNotary is ERC721 {
 
         require(checkIfStarExist(newStar.ra, newStar.dec, newStar.mag) == false, "Star already exists!");
 
-        indexToStar[starCount] = newStar;
+        indexToTokenId[starCount] = _tokenId;
         tokenIdToStar[_tokenId] = newStar;
         starCount++;
 
@@ -56,9 +60,10 @@ contract StarNotary is ERC721 {
         string _mag) internal returns (bool)  {
 
         for(uint i = 0; i < starCount; i++){
-            if(keccak256(bytes(_ra)) == keccak256(bytes(indexToStar[i].ra)) &&
-            keccak256(bytes(_dec)) == keccak256(bytes(indexToStar[i].dec)) &&
-            keccak256(bytes(_mag)) == keccak256(bytes(indexToStar[i].mag))){
+            uint256  _tokenId = indexToTokenId[i];
+            if(keccak256(bytes(_ra)) == keccak256(bytes(tokenIdToStar[_tokenId].ra)) &&
+            keccak256(bytes(_dec)) == keccak256(bytes(tokenIdToStar[_tokenId].dec)) &&
+            keccak256(bytes(_mag)) == keccak256(bytes(tokenIdToStar[_tokenId].mag))){
                 return true;
             }
         }
@@ -67,16 +72,16 @@ contract StarNotary is ERC721 {
 
     function putStarUpForSale(uint256 _tokenId, uint256 _price) public { 
         require(_isApprovedOrOwner(msg.sender,_tokenId), "Operation not permitted for user");
-        starsForSale[_tokenId] = _price;
+        _starsForSale[_tokenId] = _price;
 
-        //tokenIdsForSale.push(_tokenId);
+        tokenIdsForSale.push(_tokenId);
     }
 
 
     function buyStar(uint256 _tokenId) public payable { 
-        require(starsForSale[_tokenId] > 0,"");
+        require(_starsForSale[_tokenId] > 0,"");
         
-        uint256 starCost = starsForSale[_tokenId];
+        uint256 starCost = _starsForSale[_tokenId];
         address starOwner = this.ownerOf(_tokenId);
         require(msg.value >= starCost, "");
 
@@ -84,20 +89,21 @@ contract StarNotary is ERC721 {
         starOwner.transfer(starCost);
 
         // set price to 0 so star cannot be purchased unless the new owner desires so
-        starsForSale[_tokenId] = 0;
+        _starsForSale[_tokenId] = 0;
+        delete tokenIdsForSale[0];
 
         if(msg.value > starCost) { 
             msg.sender.transfer(msg.value - starCost);
         }
+
     }
 
-    function starsForSale() public returns(uint256[]){
-        tokenIdsForSale.push(123);
+    function starsForSale() public view returns (uint256[]){
         return tokenIdsForSale;
 
     }
     
-    function tokenIdToStarInfo(uint256 _tokenId) public view returns (
+    function tokenIdToStarInfo(uint256 _tokenId) external view returns (
         string _name, 
         string _story, 
         string _ra, 
@@ -122,3 +128,4 @@ contract StarNotary is ERC721 {
         for (i = 0; i < _bb.length; i++) bytes_s[k++] = _bb[i]; 
         return string(bytes_s); 
     }
+}
